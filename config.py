@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
+IPDATA_KEY = os.getenv("IPDATA_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 HEADERS = {
     "accept": "application/json, text/plain, */*",

@@ -1,6 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
-from utils.get_data import get_earning_data
+from utils.get_data import get_earning_data, get_total_ips, get_country_flag
 from datetime import datetime
 from telegram import InputFile
 
@@ -105,11 +105,11 @@ async def check_earning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if chat_id in user_tokens:
         authorization_token = user_tokens[chat_id]
         total_earning, today_earning, start_date, end_date, epoch_name, total_uptime = get_earning_data(authorization_token)
-        
+        total_ips = get_total_ips(authorization_token)
+
         if total_earning is not None:
             start_date = format_date(start_date)
             end_date = format_date(end_date)
-
             formatted_uptime = convert_uptime_seconds(total_uptime)
             message = (
                 f"<b>🔮 Stage 2:</b> <code>{epoch_name}</code>\n"
@@ -119,15 +119,37 @@ async def check_earning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 f"<b>📊 Total Earning:</b> <code>{total_earning}</code>\n"
                 f"<b>⏱️ Total Uptime:</b> <code>{formatted_uptime}</code>\n"
             )
-            await update.message.reply_text(message, parse_mode="HTML")
         else:
-            await update.message.reply_text(
-        "<b>Unable to fetch earnings data at this time:</b>\n"
-        "<b>- Invalid token</b>\n"
-        "<b>- Network issues</b>\n"
-        "<b>- Server maintenance</b>\n"
-        "<b>Please double-check and try again later.</b>",
-        parse_mode='HTML'
-    )
+            message = (
+                "<b>Unable to fetch earnings data at this time:</b>\n"
+                "<b>- Invalid token</b>\n"
+                "<b>- Network issues</b>\n"
+                "<b>- Server maintenance</b>\n"
+                "<b>Please double-check and try again later.</b>"
+            )
+        if total_ips:
+            message += f"\n<b>🌐 Total Active Networks:</b> <code>{len(total_ips)}</code>"
+        else:
+            message += "\n<b>No active Networks found or unable to fetch data.</b>"
+
+        if total_ips:
+            ips_with_zero_score = [
+                ip_data for ip_data in total_ips if ip_data.get('ipScore') == 0
+            ]
+            if ips_with_zero_score:
+                message += "\n⚠️ <b>IPs with 0 Network Score :</b>\n"
+                for ip in ips_with_zero_score:
+                    country_flag = get_country_flag(ip["ipAddress"])
+                    if country_flag:
+                        if country_flag.startswith('http'):
+                            message += f"<code>{ip['ipAddress']}</code> - <img src='{country_flag}' width='30' height='20'/>\n"
+                        else: 
+                            message += f"<code>{ip['ipAddress']}</code> - {country_flag}\n"
+                    else:
+                        message += f"<code>{ip['ipAddress']}</code> - No Flag\n"
+        else:
+            message += "\n\n<b>No active Networks found or unable to fetch data.</b>"
+
+        await update.message.reply_text(message, parse_mode="HTML")
     else:
         await update.message.reply_text("Please save your Authorization Token first using /authorization.")

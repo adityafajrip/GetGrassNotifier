@@ -39,11 +39,16 @@ Change the file name from .env_copy to .env
 insert your Telegram bot token & IPData api key (Optional) the bot still running.
 ```
 
+## Requirement
 
+```python
+Python 3.11 - Latest
+```
 
 ## Usage
 
 ```python
+pip install -r requirements.txt
 python main.py
 ```
 

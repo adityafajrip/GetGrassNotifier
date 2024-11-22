@@ -1,8 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
-from utils.get_data import get_earning_data, get_total_ips, get_country_flag
+from utils.get_data import get_earning_data, get_total_ips
 from datetime import datetime
-from telegram import InputFile
 
 user_tokens = {}
 
@@ -10,7 +9,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [KeyboardButton("/authorization"), KeyboardButton("/viewauthorization")],
         [KeyboardButton("/changeauthorization"), KeyboardButton("/removeauthorization")],
-        [KeyboardButton("/checkearning")],[KeyboardButton("/help")]
+        [KeyboardButton("/checkearning")], [KeyboardButton("/help")]
     ]
     
     await update.message.reply_text(
@@ -42,7 +41,7 @@ async def handle_authorization(update: Update, context: ContextTypes.DEFAULT_TYP
     if "waiting_for_token" in context.user_data and context.user_data["waiting_for_token"]:
         authorization_token = update.message.text
         user_tokens[chat_id] = authorization_token
-        context.user_data["waiting_for_token"] = False  #Mengatur status agar tidak terus-menerus menerima token
+        context.user_data["waiting_for_token"] = False
         await update.message.reply_text("Authorization Token received and saved.")
     else:
         await update.message.reply_text(
@@ -73,7 +72,6 @@ async def remove_authorization(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("No Authorization Token found to remove.")
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global is_sending_gif
     gif_path = 'assets/tutorial.gif'
     
     await update.message.reply_text(
@@ -102,12 +100,20 @@ def format_date(date_str):
 
 async def check_earning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.message.chat_id
+    user_name = update.message.from_user.username
+
+    print(f"Fetching data for user with chat_id: {chat_id} ({user_name})") 
+
     if chat_id in user_tokens:
+        print(f"Token found for user {chat_id}. Retrieving earnings data...")
         authorization_token = user_tokens[chat_id]
+        print(f"Fetching data with authorization token for user {chat_id}.")
+
         total_earning, today_earning, start_date, end_date, epoch_name, total_uptime = get_earning_data(authorization_token)
         total_ips = get_total_ips(authorization_token)
 
         if total_earning is not None:
+            print(f"Earnings fetched for user {chat_id}: Total earnings: {total_earning}, Today's earnings: {today_earning}")
             start_date = format_date(start_date)
             end_date = format_date(end_date)
             formatted_uptime = convert_uptime_seconds(total_uptime)
@@ -120,6 +126,7 @@ async def check_earning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 f"<b>⏱️ Total Uptime:</b> <code>{formatted_uptime}</code>\n"
             )
         else:
+            print(f"No earnings data found for user {chat_id}.") 
             message = (
                 "<b>Unable to fetch earnings data at this time:</b>\n"
                 "<b>- Invalid token</b>\n"
@@ -128,8 +135,10 @@ async def check_earning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 "<b>Please double-check and try again later.</b>"
             )
         if total_ips:
+            print(f"Found {len(total_ips)} active networks for user {chat_id}.")
             message += f"\n<b>🌐 Total Active Networks:</b> <code>{len(total_ips)}</code>"
         else:
+            print(f"No active networks found for user {chat_id}.")
             message += "\n<b>No active Networks found or unable to fetch data.</b>"
 
         if total_ips:
@@ -137,19 +146,14 @@ async def check_earning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 ip_data for ip_data in total_ips if ip_data.get('ipScore') == 0
             ]
             if ips_with_zero_score:
+                print(f"Found {len(ips_with_zero_score)} IPs with 0 network score for user {chat_id}.")
                 message += "\n⚠️ <b>IPs with 0 Network Score :</b>\n"
                 for ip in ips_with_zero_score:
-                    country_flag = get_country_flag(ip["ipAddress"])
-                    if country_flag:
-                        if country_flag.startswith('http'):
-                            message += f"<code>{ip['ipAddress']}</code> - <img src='{country_flag}' width='30' height='20'/>\n"
-                        else: 
-                            message += f"<code>{ip['ipAddress']}</code> - {country_flag}\n"
-                    else:
-                        message += f"<code>{ip['ipAddress']}</code> - No Flag\n"
-        else:
-            message += "\n\n<b>No active Networks found or unable to fetch data.</b>"
+                    message += f"<code>{ip['ipAddress']}</code>\n"
+            else:
+                print(f"No IPs with score 0 for user {chat_id}.")
 
         await update.message.reply_text(message, parse_mode="HTML")
     else:
+        print(f"Token not found for user {chat_id}.")
         await update.message.reply_text("Please save your Authorization Token first using /authorization.")

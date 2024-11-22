@@ -4,23 +4,24 @@ from handlers import start, add_authorization, view_authorization, check_earning
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 import asyncio
-from utils.get_data import get_earning_data, get_total_ips, get_country_flag
+from utils.get_data import get_earning_data, get_total_ips
 from handlers import format_date
 from handlers import convert_uptime_seconds
-from config import TELEGRAM_BOT_TOKEN, IPDATA_KEY
+from config import TELEGRAM_BOT_TOKEN
 from handlers import help
-
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def send_earning_notification(application):
-    logger.info("Sending notification to user")
+    logger.info("Sending notification to users")
     for chat_id in user_tokens:
         authorization_token = user_tokens[chat_id]
         total_earning, today_earning, start_date, end_date, epoch_name, total_uptime = get_earning_data(authorization_token)
         total_ips = get_total_ips(authorization_token)
-        
+
+        logger.info(f"Fetching earnings data for user with chat_id: {chat_id}")
+
         if total_earning is not None and today_earning is not None:
             formatted_start_date = format_date(start_date)
             formatted_end_date = format_date(end_date)
@@ -40,22 +41,15 @@ async def send_earning_notification(application):
             else:
                 message += "\n\n<b>No active Networks found or unable to fetch data.</b>"
 
-            if total_ips is not None:
+            if total_ips:
                 ips_with_zero_score = [
                     ip_data for ip_data in total_ips if ip_data.get('ipScore') == 0
                 ]
                 if ips_with_zero_score:
-                    message += "\n⚠️ <b>IPs with 0 Network Score:</b>\n"
+                    message += "\n⚠️ <b>IPs with 0 Network Score :</b>\n"
                     for ip in ips_with_zero_score:
                         ip_address = ip['ipAddress']
-                        country_flag = get_country_flag(ip_address)
-                        if country_flag:
-                            if country_flag.startswith('http'):
-                                message += f"<code>{ip_address}</code> - <img src='{country_flag}' width='30' height='20'/>\n"
-                            else:
-                                message += f"<code>{ip_address}</code> - {country_flag}\n"
-                        else:
-                            message += f"<code>{ip_address}</code> - No Flag\n"
+                        message += f"<code>{ip_address}</code>\n"
                     message += "\n\n<i>🔔 Stay tuned for your next earning update!</i>"
         else:
             message = (
@@ -69,18 +63,17 @@ async def send_earning_notification(application):
 
 # Scheduler
 def schedule_notifications(application):
-    scheduler = AsyncIOScheduler(timezone='Asia/Jakarta') #Change timezone
+    scheduler = AsyncIOScheduler(timezone='Asia/Jakarta')  # Change timezone
     loop = asyncio.get_event_loop()
 
     scheduler.add_job(
         lambda: loop.create_task(send_earning_notification(application)),
-        CronTrigger(hour=12, minute=0
-        ) 
+        CronTrigger(hour=12, minute=0)
     )
     
     scheduler.add_job(
         lambda: loop.create_task(send_earning_notification(application)),
-        CronTrigger(hour=21, minute=00) 
+        CronTrigger(hour=21, minute=30)
     )
     
     scheduler.start()
